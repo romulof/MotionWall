@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "motionwall",
+    name: "MotionWall",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(

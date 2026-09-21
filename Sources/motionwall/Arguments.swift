@@ -11,7 +11,7 @@ struct Arguments {
     var force: Bool = false
 
     static let usage = """
-        motionwall turns a video into a macOS animated wallpaper and installs it.
+        MotionWall turns a video into a macOS animated wallpaper and installs it.
 
         usage:
           motionwall --input <path> --name <name> [options]

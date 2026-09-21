@@ -156,7 +156,7 @@ struct AerialLibrary {
             ?? [
                 "id": target.categoryID,
                 "localizedNameKey": categoryName,
-                "localizedDescriptionKey": "Wallpapers made with motionwall",
+                "localizedDescriptionKey": "Wallpapers made with MotionWall",
                 "preferredOrder": 1,
             ]
         category["previewImage"] = thumbnail
@@ -169,7 +169,7 @@ struct AerialLibrary {
                     "id": target.subcategoryID,
                     "preferredOrder": 0,
                     "localizedNameKey": categoryName,
-                    "localizedDescriptionKey": "Wallpapers made with motionwall",
+                    "localizedDescriptionKey": "Wallpapers made with MotionWall",
                 ]
             ]
         }

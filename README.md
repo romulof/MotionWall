@@ -1,13 +1,13 @@
-# motionwall
+# MotionWall
 
-Turns any video into a macOS animated wallpaper and installs it into
+MotionWall turns any video into a macOS animated wallpaper and installs it into
 System Settings → Wallpaper.
 
 ## Getting started
 
 You need macOS 13 or later, the Xcode Command Line Tools, and a Mac with a
 hardware HEVC encoder. Every Apple silicon Mac has one. So does any Intel Mac
-with Quick Sync. The tool checks for it and stops with a clear message when it is
+with Quick Sync. MotionWall checks for it and stops with a clear message when it is
 missing.
 
 Build it:

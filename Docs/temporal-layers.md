@@ -32,7 +32,7 @@ Check any file with `ffprobe`-adjacent tooling, or by reading the `sgpd` boxes.
 Compression property BaseLayerFrameRateFraction is not supported for video codec type hvc1
 ```
 
-So this tool drives `VTCompressionSession` directly and sets three properties that
+So MotionWall drives `VTCompressionSession` directly and sets three properties that
 are **not declared in the SDK headers**. They were found by calling
 `VTSessionCopySupportedPropertyDictionary` on a live session:
 
@@ -43,7 +43,7 @@ BaseLayerFrameRate     = fps / 2
 ```
 
 `NumberOfTemporalLayers` is the one that emits the atoms. It is supported only by the
-hardware encoder, `com.apple.videotoolbox.videoencoder.ave.hevc`. The tool requires a
+hardware encoder, `com.apple.videotoolbox.videoencoder.ave.hevc`. MotionWall requires a
 hardware encoder and fails early with a clear message when one is unavailable.
 
 ## Properties that turned out not to matter
