@@ -2,15 +2,40 @@ import AVFoundation
 import CoreImage
 import Foundation
 
-struct ThumbnailMaker {
-    static let tileWidth = 642
-    static let tileHeight = 390
+public struct ThumbnailMaker {
+    public static let tileWidth = 642
+    public static let tileHeight = 390
 
     let source: VideoSource
     let frame: Int
-    let output: URL
 
-    func run() throws {
+    public init(source: VideoSource, frame: Int) {
+        self.source = source
+        self.frame = frame
+    }
+
+    public func write(to output: URL) throws {
+        try CIContext(options: [.cacheIntermediates: false]).writePNGRepresentation(
+            of: try makeTile(),
+            to: output,
+            format: .RGBA8,
+            colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!
+        )
+    }
+
+    public func makeImage() throws -> CGImage {
+        let tile = try makeTile()
+        guard
+            let image = CIContext(options: [.cacheIntermediates: false]).createCGImage(
+                tile, from: tile.extent, format: .RGBA8,
+                colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
+        else {
+            throw MotionWallError.pixelBufferAllocation
+        }
+        return image
+    }
+
+    private func makeTile() throws -> CIImage {
         guard frame <= source.frameCount else {
             throw MotionWallError.thumbnailFrameOutOfRange(frame, source.frameCount)
         }
@@ -55,16 +80,8 @@ struct ThumbnailMaker {
                 y: (Double(Self.tileHeight) - scaled.extent.height) / 2 - scaled.extent.origin.y
             )
         )
-        let tile = centered.cropped(
+        return centered.cropped(
             to: CGRect(x: 0, y: 0, width: Self.tileWidth, height: Self.tileHeight)
-        )
-
-        let context = CIContext(options: [.cacheIntermediates: false])
-        try context.writePNGRepresentation(
-            of: tile,
-            to: output,
-            format: .RGBA8,
-            colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!
         )
     }
 }

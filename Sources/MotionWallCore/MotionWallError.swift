@@ -1,6 +1,6 @@
 import Foundation
 
-enum MotionWallError: Error, CustomStringConvertible {
+public enum MotionWallError: Error, CustomStringConvertible {
     case usage(String)
     case missingInput(URL)
     case noVideoTrack(URL)
@@ -19,7 +19,7 @@ enum MotionWallError: Error, CustomStringConvertible {
     case cancelledByUser
     case concurrencyFailure
 
-    var description: String {
+    public var description: String {
         switch self {
         case .usage(let text):
             return text

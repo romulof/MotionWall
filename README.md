@@ -1,35 +1,59 @@
-# MotionWall
+<p align="center">
+  <img src="Design/AppIcon-256.png" width="128" height="128" alt="MotionWall icon">
+</p>
 
-MotionWall turns any video into a macOS animated wallpaper and installs it into
-System Settings → Wallpaper.
+<h1 align="center">MotionWall</h1>
+
+<p align="center">Turn any video into a macOS animated wallpaper and install it into System Settings → Wallpaper.</p>
+
+MotionWall is a Mac app with a command-line tool inside it. Both do the same job: encode the video the way macOS needs it, make the thumbnail tile, and add the wallpaper to your library.
 
 ## Getting started
 
-You need macOS 13 or later, the Xcode Command Line Tools, and a Mac with a
-hardware HEVC encoder. Every Apple silicon Mac has one. So does any Intel Mac
-with Quick Sync. MotionWall checks for it and stops with a clear message when it is
-missing.
+You need macOS 13 or later, Xcode, and a Mac with a hardware HEVC encoder. Every Apple silicon Mac has one. So does any Intel Mac with Quick Sync. MotionWall checks for it and stops with a clear message when it is missing.
 
 Build it:
 
 ```
 git clone git@github.com:romulof/MotionWall.git
 cd MotionWall
-swift build -c release
+xcodebuild -project MotionWall.xcodeproj -scheme MotionWall -configuration Release -derivedDataPath .build/xcode build
 ```
 
-The binary lands at `.build/release/motionwall`.
+The app lands at `.build/xcode/Build/Products/Release/MotionWall.app`. Or open `MotionWall.xcodeproj` and press Run.
 
-Put it on your PATH so you can call it from anywhere:
+The CLI ships inside the app at `MotionWall.app/Contents/Helpers/motionwall`. It sits in `Helpers` rather than `MacOS` because `motionwall` and the app's own `MotionWall` executable would be the same file on a case-insensitive volume.
+
+Install the app and put the CLI on your PATH:
 
 ```
-sudo cp .build/release/motionwall /usr/local/bin/
+cp -R .build/xcode/Build/Products/Release/MotionWall.app /Applications/
+sudo ln -s /Applications/MotionWall.app/Contents/Helpers/motionwall /usr/local/bin/motionwall
 ```
 
-To remove it later, delete that file. Wallpapers you already installed stay in
-place.
+To remove it later, delete the app and the link. Wallpapers you already installed stay in place.
 
-## Usage
+## The app
+
+Open MotionWall and drop a video on the window, or press Choose video…. Any format QuickTime can read works.
+
+Once the video is in, the left side holds the settings and the right side shows the thumbnail tile and the Install button:
+
+- **Name** and **Category** are what System Settings shows. The name starts as the file name, the category as `Custom`.
+- **Width** and **Height** start empty, which means the source size. They scale independently, so setting only one changes the aspect ratio.
+- **Frame rate** is the source's. MotionWall keeps every frame.
+- **Bitrate** starts at the source's bitrate.
+- **Thumbnail** picks the frame used for the tile. The preview on the right is the exact 642×390 image that gets installed.
+
+To swap videos, drag another one over the window. Before you let go, it shows that file's name, size, frame rate and bitrate. Change… on the right does the same through a file picker.
+
+Install shows its progress, asks before replacing one of your own wallpapers, and offers to open Wallpaper settings when it is done.
+
+The window follows the system's light and dark appearance, and uses Liquid Glass on macOS 26 and later.
+
+The app is not sandboxed: it writes into `~/Library/Application Support/com.apple.wallpaper` and restarts `WallpaperAgent`, and the sandbox forbids both.
+
+## The CLI
 
 ```
 motionwall --input <path> --name <name> [options]
@@ -43,8 +67,10 @@ motionwall --input <path> --name <name> [options]
 | `--thumbnail-frame <n>` | no | `1` | 1-based frame used for the tile image. |
 | `--width <pixels>` | no | source width | Output width. Scaled with Lanczos. |
 | `--height <pixels>` | no | source height | Output height. |
-| `--bitrate <mbps>` | no | `12` | Target bitrate in Mbit/s. |
+| `--bitrate <mbps>` | no | source bitrate | Target bitrate in Mbit/s. Falls back to `12` when the source does not report one. |
 | `--force` | no | off | Replace an existing wallpaper without asking. |
+
+Width and height scale independently, as in the app: setting only one stretches the picture.
 
 Example:
 
@@ -62,25 +88,28 @@ motionwall --input video.mp4 --name "My Wallpaper" --width 3840 --height 2160 --
 
 Output has no audio track. Apple's aerials have none either.
 
-The temporal layers in step 2 are what make the unlock animation work. See
-[Docs/temporal-layers.md](Docs/temporal-layers.md) for why, and for why `ffmpeg`
-cannot produce such a file.
+The temporal layers in step 2 are what make the unlock animation work. See [Docs/temporal-layers.md](Docs/temporal-layers.md) for why, and for why `ffmpeg` cannot produce such a file.
 
 ## Safety
 
-- Apple categories are refused. A category is Apple's when its id is
-  `dynamic-aerials` or its name key starts with `AerialCategory`. Both the raw key
-  (`AerialCategoryLandscapes`) and the display name (`Landscapes`) are matched.
+- Apple categories are refused. A category is Apple's when its id is `dynamic-aerials` or its name key starts with `AerialCategory`. Both the raw key (`AerialCategoryLandscapes`) and the display name (`Landscapes`) are matched.
 - Apple assets are refused. An asset is Apple's when its video URL is not `file://`.
-- Replacing your own wallpaper asks for confirmation unless `--force` is given.
+- Replacing one of your own wallpapers asks first, in the app and in the CLI. `--force` skips the question in the CLI.
 - `manifest/entries.json` is copied to `entries.json.bak` before the first write.
+
+## Project layout
+
+| Path | What it is |
+|---|---|
+| `Sources/MotionWallCore` | The encoder, thumbnail maker and wallpaper library code, built as a static library. |
+| `Sources/MotionWallCli` | The `motionwall` command-line tool. |
+| `Sources/MotionWallApp` | The SwiftUI app, including the `AppIcon.icon` app icon. |
+| `Design` | Source artwork for the icon. |
+| `Docs` | Background reading. |
 
 ## Docs
 
-- [Why temporal layers matter](Docs/temporal-layers.md) — the HEVC sample groups
-  macOS needs for the unlock animation, why the desktop goes black without them,
-  why `ffmpeg` cannot write them, and which video properties turned out to be
-  irrelevant.
+- [Why temporal layers matter](Docs/temporal-layers.md) — the HEVC sample groups macOS needs for the unlock animation, why the desktop goes black without them, why `ffmpeg` cannot write them, and which video properties turned out to be irrelevant.
 
 ## Licence
 
