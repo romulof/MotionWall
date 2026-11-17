@@ -7,9 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		4D0000000000000000000033 /* libMotionWallCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D0000000000000000000008 /* libMotionWallCore.a */; };
-		4D0000000000000000000034 /* libMotionWallCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D0000000000000000000008 /* libMotionWallCore.a */; };
+		4D0000000000000000000033 /* libMotionWallCore.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D0000000000000000000008 /* libMotionWallCore.dylib */; };
+		4D0000000000000000000034 /* libMotionWallCore.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D0000000000000000000008 /* libMotionWallCore.dylib */; };
 		4D0000000000000000000035 /* motionwall in Embed CLI */ = {isa = PBXBuildFile; fileRef = 4D0000000000000000000007 /* motionwall */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		4D0000000000000000000036 /* libMotionWallCore.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 4D0000000000000000000008 /* libMotionWallCore.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -48,12 +49,23 @@
 			name = "Embed CLI";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4D0000000000000000000015 /* Embed Libraries */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				4D0000000000000000000036 /* libMotionWallCore.dylib in Embed Libraries */,
+			);
+			name = "Embed Libraries";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		4D0000000000000000000006 /* MotionWall.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MotionWall.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4D0000000000000000000007 /* motionwall */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = motionwall; sourceTree = BUILT_PRODUCTS_DIR; };
-		4D0000000000000000000008 /* libMotionWallCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libMotionWallCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		4D0000000000000000000008 /* libMotionWallCore.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libMotionWallCore.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -79,7 +91,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4D0000000000000000000033 /* libMotionWallCore.a in Frameworks */,
+				4D0000000000000000000033 /* libMotionWallCore.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -87,7 +99,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4D0000000000000000000034 /* libMotionWallCore.a in Frameworks */,
+				4D0000000000000000000034 /* libMotionWallCore.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -109,7 +121,7 @@
 			children = (
 				4D0000000000000000000006 /* MotionWall.app */,
 				4D0000000000000000000007 /* motionwall */,
-				4D0000000000000000000008 /* libMotionWallCore.a */,
+				4D0000000000000000000008 /* libMotionWallCore.dylib */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -125,6 +137,7 @@
 				4D0000000000000000000012 /* Frameworks */,
 				4D0000000000000000000013 /* Resources */,
 				4D0000000000000000000014 /* Embed CLI */,
+				4D0000000000000000000015 /* Embed Libraries */,
 			);
 			buildRules = (
 			);
@@ -175,8 +188,8 @@
 			);
 			name = MotionWallCore;
 			productName = MotionWallCore;
-			productReference = 4D0000000000000000000008 /* libMotionWallCore.a */;
-			productType = "com.apple.product-type.library.static";
+			productReference = 4D0000000000000000000008 /* libMotionWallCore.dylib */;
+			productType = "com.apple.product-type.library.dynamic";
 		};
 /* End PBXNativeTarget section */
 
@@ -311,10 +324,14 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_APP_SANDBOX = NO;
-				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_HARDENED_RUNTIME = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = MotionWall;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.romulof.MotionWall;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -328,10 +345,14 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_APP_SANDBOX = NO;
-				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_HARDENED_RUNTIME = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = MotionWall;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.romulof.MotionWall;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -342,7 +363,11 @@
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
-				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_HARDENED_RUNTIME = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				PRODUCT_MODULE_NAME = MotionWallCLI;
 				PRODUCT_NAME = motionwall;
 				SKIP_INSTALL = YES;
@@ -354,7 +379,11 @@
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
-				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_HARDENED_RUNTIME = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				PRODUCT_MODULE_NAME = MotionWallCLI;
 				PRODUCT_NAME = motionwall;
 				SKIP_INSTALL = YES;
@@ -364,6 +393,13 @@
 		4D000000000000000000005A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				EXECUTABLE_PREFIX = lib;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 			};
@@ -372,6 +408,13 @@
 		4D000000000000000000005B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				EXECUTABLE_PREFIX = lib;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 			};

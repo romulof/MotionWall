@@ -31,6 +31,8 @@ cp -R .build/xcode/Build/Products/Release/MotionWall.app /Applications/
 sudo ln -s /Applications/MotionWall.app/Contents/Helpers/motionwall /usr/local/bin/motionwall
 ```
 
+Link the CLI rather than copying it: it loads `libMotionWallCore.dylib` from the app's `Contents/Frameworks`, so a copy outside the app cannot start.
+
 To remove it later, delete the app and the link. Wallpapers you already installed stay in place.
 
 ## The app
@@ -101,7 +103,7 @@ The temporal layers in step 2 are what make the unlock animation work. See [Docs
 
 | Path | What it is |
 |---|---|
-| `Sources/MotionWallCore` | The encoder, thumbnail maker and wallpaper library code, built as a static library. |
+| `Sources/MotionWallCore` | The encoder, thumbnail maker and wallpaper library code, built as `libMotionWallCore.dylib`, which the app and the CLI share. |
 | `Sources/MotionWallCli` | The `motionwall` command-line tool. |
 | `Sources/MotionWallApp` | The SwiftUI app, including the `AppIcon.icon` app icon. |
 | `Design` | Source artwork for the icon. |
