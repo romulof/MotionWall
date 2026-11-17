@@ -6,18 +6,31 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @StateObject private var model = InstallModel()
     @State private var choosingFile = false
+    @Namespace private var morph
 
     private let wallpaperSettings = URL(
         string: "x-apple.systempreferences:com.apple.Wallpaper-Settings.extension")!
 
+    private var showsEditor: Bool { model.source != nil && model.hovered == nil }
+
     var body: some View {
-        Group {
-            if model.source == nil || model.hovered != nil {
-                editor.hidden().overlay { dropZone }
+        ZStack {
+            editor(morphing: false)
+                .hidden()
+                .disabled(true)
+                .accessibilityHidden(true)
+            if showsEditor {
+                editor(morphing: true)
             } else {
-                editor
+                dropZone
             }
         }
+        .animation(
+            model.hovered == nil
+                ? .spring(response: 0.55, dampingFraction: 0.82)
+                : .easeOut(duration: 0.2),
+            value: showsEditor
+        )
         .padding([.horizontal, .bottom], 16)
         .padding(.top, 2)
         .frame(width: 780)
@@ -52,10 +65,27 @@ struct ContentView: View {
     }
 
     private var dropZone: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(
+                    model.hovered != nil ? Color.accentColor : Color.secondary.opacity(0.35),
+                    style: StrokeStyle(lineWidth: model.hovered != nil ? 2.5 : 1.5, dash: [8, 6])
+                )
+                .matchedGeometryEffect(id: MorphID.frame, in: morph)
+            dropZoneContent.padding(32)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var dropZoneContent: some View {
         VStack(spacing: 12) {
             Image(systemName: "film")
-                .font(.system(size: 52, weight: .light))
+                .resizable()
+                .scaledToFit()
+                .fontWeight(.light)
                 .foregroundStyle(.secondary)
+                .matchedGeometryEffect(id: MorphID.icon, in: morph)
+                .frame(width: 64, height: 50)
             if let hovered = model.hovered {
                 hoveredDetails(hovered)
             } else if model.phase == .loading {
@@ -76,15 +106,6 @@ struct ContentView: View {
                 }
             }
         }
-        .padding(32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(
-                    model.hovered != nil ? Color.accentColor : Color.secondary.opacity(0.35),
-                    style: StrokeStyle(lineWidth: model.hovered != nil ? 2.5 : 1.5, dash: [8, 6])
-                )
-        )
     }
 
     @ViewBuilder
@@ -93,6 +114,7 @@ struct ContentView: View {
             .font(.title2.weight(.semibold))
             .lineLimit(1)
             .truncationMode(.middle)
+            .matchedGeometryEffect(id: MorphID.name, in: morph, properties: .position)
         if let source = hovered.source {
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 4) {
                 detailRow("Width", "\(Int(source.size.width))")
@@ -121,7 +143,7 @@ struct ContentView: View {
         "\(source.frameRate.formatted(.number.precision(.fractionLength(0...2)))) fps"
     }
 
-    private var editor: some View {
+    private func editor(morphing: Bool) -> some View {
         HStack(alignment: .top, spacing: 16) {
             settingsForm
                 .padding(20)
@@ -131,22 +153,26 @@ struct ContentView: View {
                     in: RoundedRectangle(cornerRadius: 16)
                 )
                 .disabled(model.isBusy)
-            previewColumn
+            previewColumn(morphing: morphing)
         }
         .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
-    private var sourceRow: some View {
+    private func sourceRow(morphing: Bool) -> some View {
         if let source = model.source {
             HStack(spacing: 8) {
                 Image(systemName: "film")
-                    .font(.title2)
+                    .resizable()
+                    .scaledToFit()
                     .foregroundStyle(.secondary)
+                    .morph(MorphID.icon, in: morph, enabled: morphing)
+                    .frame(width: 26, height: 20)
                 Text(source.url.lastPathComponent)
                     .font(.headline)
                     .lineLimit(1)
                     .truncationMode(.middle)
+                    .morph(MorphID.name, in: morph, properties: .position, enabled: morphing)
                 Spacer(minLength: 8)
                 Button("Change…") { choosingFile = true }
                     .glassButton()
@@ -225,27 +251,31 @@ struct ContentView: View {
         }
     }
 
-    private var thumbnailPreview: some View {
+    private func thumbnailPreview(morphing: Bool) -> some View {
         Group {
             if let preview = model.preview {
                 Image(decorative: preview, scale: 2)
+                    .resizable()
+                    .scaledToFill()
             } else {
                 Rectangle()
                     .fill(.quaternary)
                     .overlay(Image(systemName: "photo").foregroundStyle(.secondary))
             }
         }
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .morph(MorphID.frame, in: morph, enabled: morphing)
         .frame(
             width: CGFloat(ThumbnailMaker.tileWidth) / 2,
             height: CGFloat(ThumbnailMaker.tileHeight) / 2
         )
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
-    private var previewColumn: some View {
+    private func previewColumn(morphing: Bool) -> some View {
         VStack(spacing: 12) {
-            sourceRow
-            thumbnailPreview
+            sourceRow(morphing: morphing)
+            thumbnailPreview(morphing: morphing)
             Spacer(minLength: 0)
             status
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -274,7 +304,7 @@ struct ContentView: View {
     @ViewBuilder
     private var status: some View {
         switch model.phase {
-        case .idle, .loading:
+        case .idle, .loading, .done:
             EmptyView()
         case .preparing:
             HStack(spacing: 8) {
@@ -293,17 +323,30 @@ struct ContentView: View {
                 ProgressView().controlSize(.small)
                 Text("Installing…")
             }
-        case .done(let url):
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Installed \(url.path)").lineLimit(1).truncationMode(.middle)
-                Text(
-                    "Open System Settings > Wallpaper and pick \"\(model.name)\" under \"\(model.category)\"."
-                )
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            }
         case .failed(let message):
             Text(message).foregroundStyle(.red).lineLimit(3)
+        }
+    }
+}
+
+private enum MorphID {
+    static let frame = "frame"
+    static let icon = "icon"
+    static let name = "name"
+}
+
+extension View {
+    @ViewBuilder
+    fileprivate func morph(
+        _ id: String,
+        in namespace: Namespace.ID,
+        properties: MatchedGeometryProperties = .frame,
+        enabled: Bool
+    ) -> some View {
+        if enabled {
+            matchedGeometryEffect(id: id, in: namespace, properties: properties)
+        } else {
+            self
         }
     }
 }
