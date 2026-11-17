@@ -10,9 +10,11 @@ MotionWall is a Mac app with a command-line tool inside it. Both do the same job
 
 ## Getting started
 
-You need macOS 13 or later, Xcode, and a Mac with a hardware HEVC encoder. Every Apple silicon Mac has one. So does any Intel Mac with Quick Sync. MotionWall checks for it and stops with a clear message when it is missing.
+You need macOS 13 or later and a Mac with a hardware HEVC encoder. Every Apple silicon Mac has one. So does any Intel Mac with Quick Sync. MotionWall checks for it and stops with a clear message when it is missing.
 
-Build it:
+Download `MotionWall-<version>.zip` from the [latest release](https://github.com/romulof/MotionWall/releases/latest), unzip it and move `MotionWall.app` to `/Applications`. The app is not notarized, so macOS blocks the first launch: right-click it and choose Open, or allow it under System Settings → Privacy & Security.
+
+To build it yourself you also need Xcode:
 
 ```
 git clone git@github.com:romulof/MotionWall.git
@@ -108,6 +110,12 @@ The temporal layers in step 2 are what make the unlock animation work. See [Docs
 | `Sources/MotionWallApp` | The SwiftUI app, including the `AppIcon.icon` app icon. |
 | `Design` | Source artwork for the icon. |
 | `Docs` | Background reading. |
+
+## Contributing
+
+Commit messages and PR titles follow [Conventional Commits](https://www.conventionalcommits.org): `<type>(<scope>)!: <description>`, with type one of `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style` or `test`. CI rejects a pull request whose title or commits do not match, and builds the app with Xcode.
+
+Releases are cut from those messages. On every push to `main`, [release-please](https://github.com/googleapis/release-please) keeps a release PR open with the next version and the changelog: `fix` bumps the patch, `feat` the minor, and `!` marks a breaking change. Merging that PR tags the release, publishes its notes, and attaches the built `MotionWall-<version>.zip`. `scripts/build-app.sh` is the build both workflows run.
 
 ## Docs
 
