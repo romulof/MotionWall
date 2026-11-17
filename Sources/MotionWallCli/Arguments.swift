@@ -1,4 +1,5 @@
 import Foundation
+import MotionWallCore
 
 struct Arguments {
     var input: URL
@@ -7,7 +8,7 @@ struct Arguments {
     var thumbnailFrame: Int = 1
     var width: Int?
     var height: Int?
-    var bitrateMbps: Int = 12
+    var bitrateMbps: Int?
     var force: Bool = false
 
     static let usage = """
@@ -25,7 +26,7 @@ struct Arguments {
           --thumbnail-frame <n>     frame used as the tile image, 1-based (default: 1)
           --width <pixels>          output width (default: source width)
           --height <pixels>         output height (default: source height)
-          --bitrate <mbps>          target bitrate in Mbit/s (default: 12)
+          --bitrate <mbps>          target bitrate in Mbit/s (default: the source's, or 12 if unknown)
           --force                   replace an existing wallpaper without asking
           --help                    print this text
 
@@ -85,7 +86,7 @@ struct Arguments {
         guard parsed.thumbnailFrame >= 1 else {
             throw MotionWallError.usage("--thumbnail-frame must be 1 or greater")
         }
-        guard parsed.bitrateMbps >= 1 else {
+        guard (parsed.bitrateMbps ?? 1) >= 1 else {
             throw MotionWallError.usage("--bitrate must be 1 or greater")
         }
         guard !parsed.category.isEmpty else {

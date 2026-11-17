@@ -14,6 +14,11 @@ struct AerialLibrary {
     let root = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/com.apple.wallpaper/aerials")
 
+    let bundledManifestURL = URL(
+        fileURLWithPath:
+            "/System/Library/ExtensionKit/Extensions/WallpaperAerialsExtension.appex/Contents/Resources/entries.json"
+    )
+
     var manifestURL: URL { root.appendingPathComponent("manifest/entries.json") }
     var backupURL: URL { root.appendingPathComponent("manifest/entries.json.bak") }
     var videosDirectory: URL { root.appendingPathComponent("videos") }
@@ -28,12 +33,39 @@ struct AerialLibrary {
     }
 
     func load() throws -> JSONObject {
-        guard let data = try? Data(contentsOf: manifestURL),
-            let json = try? JSONSerialization.jsonObject(with: data) as? JSONObject
-        else {
+        let downloaded = Self.readManifest(at: manifestURL)
+        let bundled = Self.readManifest(at: bundledManifestURL)
+        switch (downloaded, bundled) {
+        case let (downloaded?, bundled?) where Self.version(of: bundled) > Self.version(of: downloaded):
+            return Self.rebased(customEntriesOf: downloaded, onto: bundled)
+        case let (downloaded?, _):
+            return downloaded
+        case let (nil, bundled?):
+            return bundled
+        case (nil, nil):
             throw MotionWallError.manifestUnreadable(manifestURL)
         }
-        return json
+    }
+
+    static func readManifest(at url: URL) -> JSONObject? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? JSONObject
+    }
+
+    static func version(of manifest: JSONObject) -> Int {
+        manifest["version"] as? Int ?? 0
+    }
+
+    // The aerials extension ignores the downloaded manifest once the one bundled with macOS has a higher version.
+    static func rebased(customEntriesOf downloaded: JSONObject, onto bundled: JSONObject) -> JSONObject {
+        let customCategories = (downloaded["categories"] as? [JSONObject] ?? [])
+            .filter { !isAppleOwned(category: $0) }
+        let customAssets = (downloaded["assets"] as? [JSONObject] ?? [])
+            .filter { !isAppleOwned(asset: $0) }
+        var manifest = bundled
+        manifest["categories"] = (bundled["categories"] as? [JSONObject] ?? []) + customCategories
+        manifest["assets"] = (bundled["assets"] as? [JSONObject] ?? []) + customAssets
+        return manifest
     }
 
     func save(_ manifest: JSONObject) throws {
@@ -45,7 +77,7 @@ struct AerialLibrary {
     }
 
     func prepareDirectories() throws {
-        for directory in [videosDirectory, thumbnailsDirectory] {
+        for directory in [videosDirectory, thumbnailsDirectory, manifestURL.deletingLastPathComponent()] {
             try FileManager.default.createDirectory(
                 at: directory, withIntermediateDirectories: true)
         }
