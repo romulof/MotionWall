@@ -86,7 +86,7 @@ motionwall --input video.mp4 --name "My Wallpaper" --width 3840 --height 2160 --
 2. Encodes HEVC Main 10 through `VTCompressionSession`, with temporal layers.
 3. Extracts the chosen frame, centre-crops it to the 642×390 tile aspect.
 4. Copies both files into `~/Library/Application Support/com.apple.wallpaper/aerials/`.
-5. Adds or replaces the entry in `manifest/entries.json`, then restarts `WallpaperAgent`.
+5. Adds or replaces the entry in `manifest/entries.json`, then restarts `WallpaperAgent`. When the manifest bundled with macOS has a newer `version`, MotionWall first rebuilds the file from it and carries your own categories and wallpapers over, because the wallpaper selector ignores an older downloaded manifest.
 
 Output has no audio track. Apple's aerials have none either.
 
