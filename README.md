@@ -138,7 +138,7 @@ The temporal layers in step 2 are what make the unlock animation work. See [Docs
 
 ## Contributing
 
-Commit messages and PR titles follow [Conventional Commits](https://www.conventionalcommits.org): `<type>(<scope>)!: <description>`, with type one of `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style` or `test`. CI rejects a pull request whose title or commits do not match, and builds the app with Xcode.
+Commit messages and PR titles follow [Conventional Commits](https://www.conventionalcommits.org): `<type>(<scope>)!: <description>`, with type one of `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style` or `test`. On every pull request and every push to `main`, CI checks the commit messages, and a pull request's title, and builds the app with Xcode.
 
 Releases are cut from those messages. On every push to `main`, [release-please](https://github.com/googleapis/release-please) keeps a release PR open with the next version and the changelog: `fix` bumps the patch, `feat` the minor, and `!` marks a breaking change. Merging that PR tags the release, publishes its notes, and attaches the built `MotionWall-<version>.zip`. `scripts/build-app.sh` is the build both workflows run.
 
