@@ -14,9 +14,10 @@ final class InstallModel: ObservableObject {
         case idle
         case loading
         case preparing
-        case encoding(Double)
+        case downloadingModel
+        case encoding(Double, remaining: TimeInterval?)
         case finishing
-        case done(URL)
+        case done(InstalledWallpaper)
         case failed(String)
     }
 
@@ -27,30 +28,45 @@ final class InstallModel: ObservableObject {
     @Published private(set) var hovered: HoveredVideo?
     @Published var name = ""
     @Published var category = "Custom"
-    @Published var width = ""
-    @Published var height = ""
     @Published var bitrateKbps = WallpaperRequest.fallbackBitrateKbps
+    @Published var upscales = true {
+        didSet {
+            guard bitrateKbps == suggestedBitrateKbps(upscaling: oldValue, uplifting: upliftsFrameRate) else { return }
+            bitrateKbps = suggestedBitrateKbps(upscaling: upscales, uplifting: upliftsFrameRate)
+        }
+    }
     @Published var upliftsFrameRate = true {
         didSet {
-            guard bitrateKbps == suggestedBitrateKbps(uplifting: oldValue) else { return }
-            bitrateKbps = suggestedBitrateKbps(uplifting: upliftsFrameRate)
+            guard bitrateKbps == suggestedBitrateKbps(upscaling: upscales, uplifting: oldValue) else { return }
+            bitrateKbps = suggestedBitrateKbps(upscaling: upscales, uplifting: upliftsFrameRate)
         }
     }
     @Published var thumbnailFrame = 1 {
         didSet { refreshPreview() }
     }
 
+    @Published private(set) var isPaused = false
+    private var control: InstallControl?
     private var previewTask: Task<Void, Never>?
     private var hoverTask: Task<Void, Never>?
 
     var isBusy: Bool {
         switch phase {
-        case .loading, .preparing, .encoding, .finishing: return true
+        case .loading, .preparing, .downloadingModel, .encoding, .finishing: return true
         case .idle, .done, .failed: return false
         }
     }
 
     var canInstall: Bool { !isBusy && request != nil }
+
+    var offersUpscale: Bool {
+        guard let source else { return false }
+        return SpatialUpscale.isSupported && SpatialUpscale.applies(to: source)
+    }
+
+    var outputSize: (width: Int, height: Int)? {
+        source.map { SpatialUpscale.outputSize(for: $0, upscales: upscales && offersUpscale) }
+    }
 
     var offersFrameRateUplift: Bool {
         guard let source else { return false }
@@ -58,21 +74,21 @@ final class InstallModel: ObservableObject {
     }
 
     var request: WallpaperRequest? {
-        guard let source else { return nil }
+        guard let source, let outputSize else { return nil }
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         let trimmedCategory = category.trimmingCharacters(in: .whitespaces)
         guard !trimmedName.isEmpty, !trimmedCategory.isEmpty, bitrateKbps >= WallpaperRequest.bitrateStepKbps,
-            (1...source.frameCount).contains(thumbnailFrame),
-            isValidDimension(width), isValidDimension(height)
+            (1...source.frameCount).contains(thumbnailFrame)
         else { return nil }
         return WallpaperRequest(
             input: source.url,
             name: trimmedName,
             category: trimmedCategory,
             thumbnailFrame: thumbnailFrame,
-            width: Int(width.trimmingCharacters(in: .whitespaces)),
-            height: Int(height.trimmingCharacters(in: .whitespaces)),
+            width: outputSize.width,
+            height: outputSize.height,
             bitrateKbps: bitrateKbps,
+            upscales: upscales && offersUpscale,
             upliftsFrameRate: upliftsFrameRate && offersFrameRateUplift
         )
     }
@@ -125,7 +141,7 @@ final class InstallModel: ObservableObject {
             name = loaded.url.deletingPathExtension().lastPathComponent
         }
         thumbnailFrame = 1
-        bitrateKbps = suggestedBitrateKbps(uplifting: upliftsFrameRate)
+        bitrateKbps = suggestedBitrateKbps(upscaling: upscales, uplifting: upliftsFrameRate)
         phase = .idle
     }
 
@@ -155,30 +171,76 @@ final class InstallModel: ObservableObject {
         run(prepared)
     }
 
+    func pauseInstall() {
+        control?.pause()
+        isPaused = control != nil
+    }
+
+    func resumeInstall() {
+        control?.resume()
+        isPaused = false
+    }
+
+    func cancelInstall() {
+        control?.cancel()
+        isPaused = false
+    }
+
+    func useAsWallpaper(_ wallpaper: InstalledWallpaper) async -> String? {
+        do {
+            try await onBackgroundQueue { try WallpaperSelection.select(assetID: wallpaper.assetID) }
+            return nil
+        } catch {
+            return message(for: error)
+        }
+    }
+
     func cancelReplacement() {
         pendingReplacement = nil
     }
 
     private func run(_ prepared: PreparedInstall) {
-        phase = .encoding(0)
+        phase = .preparing
+        let control = InstallControl()
+        self.control = control
         Task {
             do {
-                var lastPercent = -1
-                let installed = try await onBackgroundQueue {
-                    try WallpaperInstaller().install(prepared) { done, total in
-                        let percent = done * 100 / max(total, 1)
-                        guard percent != lastPercent else { return }
-                        lastPercent = percent
+                let needsModel = try await onBackgroundQueue {
+                    prepared.upscales && !SpatialUpscale.isModelReady(for: prepared.source)
+                }
+                phase = needsModel ? .downloadingModel : .encoding(0, remaining: nil)
+                var started: Date?
+                var lastPermille = -1
+                _ = try await onBackgroundQueue {
+                    try WallpaperInstaller().install(prepared, isCancelled: control.waitWhilePausedThenIsCancelled) { done, total in
+                        let permille = done * 1000 / max(total, 1)
+                        guard permille != lastPermille else { return }
+                        lastPermille = permille
+                        let now = Date()
+                        let start = started ?? now
+                        started = start
+                        let fraction = Double(permille) / 1000
+                        let elapsed = now.timeIntervalSince(start) - control.pausedDuration
+                        let remaining = fraction >= 0.02 && elapsed >= 3 ? elapsed * (1 - fraction) / fraction : nil
                         Task { @MainActor in
-                            guard case .encoding = self.phase else { return }
-                            self.phase = percent >= 100 ? .finishing : .encoding(Double(percent) / 100)
+                            switch self.phase {
+                            case .downloadingModel, .encoding: break
+                            default: return
+                            }
+                            self.phase = permille >= 1000 ? .finishing : .encoding(fraction, remaining: remaining)
                         }
                     }
                 }
-                phase = .done(installed)
+                phase = .done(
+                    InstalledWallpaper(
+                        assetID: prepared.assetID, name: prepared.request.name, category: prepared.request.category))
+            } catch MotionWallError.cancelledByUser {
+                phase = .idle
             } catch {
                 phase = .failed(message(for: error))
             }
+            self.control = nil
+            isPaused = false
         }
     }
 
@@ -200,15 +262,12 @@ final class InstallModel: ObservableObject {
         }
     }
 
-    private func suggestedBitrateKbps(uplifting: Bool) -> Int {
+    private func suggestedBitrateKbps(upscaling: Bool, uplifting: Bool) -> Int {
         guard let source else { return WallpaperRequest.fallbackBitrateKbps }
+        let size = SpatialUpscale.outputSize(for: source, upscales: upscaling && offersUpscale)
         return WallpaperRequest.suggestedBitrateKbps(
-            for: source, upliftsFrameRate: uplifting && offersFrameRateUplift)
-    }
-
-    private func isValidDimension(_ text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespaces)
-        return trimmed.isEmpty || (Int(trimmed) ?? 0) >= 1
+            for: source, width: size.width, height: size.height,
+            upliftsFrameRate: uplifting && offersFrameRateUplift)
     }
 
     private func message(for error: Error) -> String {
@@ -223,4 +282,53 @@ private func onBackgroundQueue<T>(_ work: @escaping () throws -> T) async throws
             continuation.resume(with: Result { try work() })
         }
     }
+}
+
+private final class InstallControl: @unchecked Sendable {
+    private let condition = NSCondition()
+    private var cancelled = false
+    private var pausedSince: Date?
+    private var pausedTotal: TimeInterval = 0
+
+    func pause() {
+        condition.lock()
+        if pausedSince == nil { pausedSince = Date() }
+        condition.unlock()
+    }
+
+    func resume() {
+        condition.lock()
+        if let since = pausedSince {
+            pausedTotal += Date().timeIntervalSince(since)
+            pausedSince = nil
+        }
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    func cancel() {
+        condition.lock()
+        cancelled = true
+        condition.unlock()
+        resume()
+    }
+
+    func waitWhilePausedThenIsCancelled() -> Bool {
+        condition.lock()
+        defer { condition.unlock() }
+        while pausedSince != nil && !cancelled { condition.wait() }
+        return cancelled
+    }
+
+    var pausedDuration: TimeInterval {
+        condition.lock()
+        defer { condition.unlock() }
+        return pausedTotal + (pausedSince.map { Date().timeIntervalSince($0) } ?? 0)
+    }
+}
+
+struct InstalledWallpaper: Equatable {
+    let assetID: String
+    let name: String
+    let category: String
 }

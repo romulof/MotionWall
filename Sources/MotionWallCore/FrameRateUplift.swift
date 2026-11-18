@@ -43,7 +43,7 @@ final class InterpolatedTimeline: FrameTimeline {
     }
 
     private let processor = VTFrameProcessor()
-    private let transfer: VTPixelTransferSession
+    private let converter: PixelConverter
     private let sourcePool: CVPixelBufferPool
     private let destinationPool: CVPixelBufferPool
     private let outputPool: CVPixelBufferPool
@@ -65,39 +65,24 @@ final class InterpolatedTimeline: FrameTimeline {
             )
         else { throw MotionWallError.frameInterpolationUnavailable(width, height) }
 
-        var session: VTPixelTransferSession?
-        let status = VTPixelTransferSessionCreate(allocator: kCFAllocatorDefault, pixelTransferSessionOut: &session)
-        guard status == noErr, let session else { throw MotionWallError.sessionCreate(status) }
-        transfer = session
-
-        func pool(_ attributes: [String: Any]) throws -> CVPixelBufferPool {
-            var attributes = attributes
-            attributes[kCVPixelBufferPixelFormatTypeKey as String] = format
-            attributes[kCVPixelBufferWidthKey as String] = width
-            attributes[kCVPixelBufferHeightKey as String] = height
-            return try createPixelBufferPool(attributes)
-        }
-        sourcePool = try pool(configuration.sourcePixelBufferAttributes)
-        destinationPool = try pool(configuration.destinationPixelBufferAttributes)
+        converter = try PixelConverter()
+        sourcePool = try createPixelBufferPool(
+            configuration.sourcePixelBufferAttributes, format: format, width: width, height: height)
+        destinationPool = try createPixelBufferPool(
+            configuration.destinationPixelBufferAttributes, format: format, width: width, height: height)
         self.outputPool = outputPool
         fallbackDuration = CMTime(seconds: 1 / sourceFrameRate, preferredTimescale: 600_000)
-
-        do {
-            try processor.startSession(configuration: configuration)
-        } catch {
-            throw MotionWallError.frameInterpolationFailed(error.localizedDescription)
-        }
+        try processor.start(configuration)
     }
 
     deinit {
         processor.endSession()
-        VTPixelTransferSessionInvalidate(transfer)
     }
 
     func add(_ buffer: CVPixelBuffer, at time: CMTime, duration: CMTime) throws -> [TimedFrame] {
-        let converted = try copy(buffer, from: sourcePool)
+        let converted = try converter.convert(buffer, using: sourcePool)
         guard let processorFrame = VTFrameProcessorFrame(buffer: converted, presentationTimeStamp: time) else {
-            throw MotionWallError.frameInterpolationFailed("the frame at \(time.seconds)s was rejected")
+            throw MotionWallError.frameProcessingFailed("the frame at \(time.seconds)s was rejected")
         }
         let next = Held(
             frame: TimedFrame(buffer: buffer, time: time, duration: duration),
@@ -142,11 +127,11 @@ final class InterpolatedTimeline: FrameTimeline {
                 frames.append(TimedFrame(buffer: previous.frame.buffer, time: time, duration: step))
                 continue
             }
-            var destination: CVPixelBuffer?
-            CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, destinationPool, &destination)
-            guard let destination,
-                let frame = VTFrameProcessorFrame(buffer: destination, presentationTimeStamp: time)
-            else { throw MotionWallError.pixelBufferAllocation }
+            let destination = try makeBuffer(from: destinationPool)
+            CVBufferPropagateAttachments(previous.frame.buffer, destination)
+            guard let frame = VTFrameProcessorFrame(buffer: destination, presentationTimeStamp: time) else {
+                throw MotionWallError.pixelBufferAllocation
+            }
             interpolated.append((frames.count, phase, frame))
             frames.append(TimedFrame(buffer: destination, time: time, duration: step))
         }
@@ -161,46 +146,17 @@ final class InterpolatedTimeline: FrameTimeline {
                 submissionMode: .sequential,
                 destinationFrames: interpolated.map(\.destination)
             )
-        else { throw MotionWallError.frameInterpolationFailed("the interpolation parameters were rejected") }
-        try process(parameters)
+        else { throw MotionWallError.frameProcessingFailed("the interpolation parameters were rejected") }
+        try processor.processAndWait(parameters)
 
         for item in interpolated {
             let frame = frames[item.index]
             frames[item.index] = TimedFrame(
-                buffer: try copy(item.destination.buffer, from: outputPool),
+                buffer: try converter.convert(item.destination.buffer, using: outputPool),
                 time: frame.time,
                 duration: frame.duration
             )
         }
         return frames
     }
-
-    private func process(_ parameters: VTFrameRateConversionParameters) throws {
-        let finished = DispatchSemaphore(value: 0)
-        var failure: Error?
-        processor.process(parameters: parameters) { _, error in
-            failure = error
-            finished.signal()
-        }
-        finished.wait()
-        if let failure { throw MotionWallError.frameInterpolationFailed(failure.localizedDescription) }
-    }
-
-    private func copy(_ buffer: CVPixelBuffer, from pool: CVPixelBufferPool) throws -> CVPixelBuffer {
-        var target: CVPixelBuffer?
-        CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &target)
-        guard let target else { throw MotionWallError.pixelBufferAllocation }
-        let status = VTPixelTransferSessionTransferImage(transfer, from: buffer, to: target)
-        guard status == noErr else {
-            throw MotionWallError.frameInterpolationFailed("converting a frame failed with status \(status)")
-        }
-        return target
-    }
-}
-
-func createPixelBufferPool(_ attributes: [String: Any]) throws -> CVPixelBufferPool {
-    var pool: CVPixelBufferPool?
-    CVPixelBufferPoolCreate(kCFAllocatorDefault, nil, attributes as CFDictionary, &pool)
-    guard let pool else { throw MotionWallError.pixelBufferAllocation }
-    return pool
 }

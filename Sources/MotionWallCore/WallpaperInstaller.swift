@@ -10,6 +10,7 @@ public struct WallpaperRequest {
     public var width: Int?
     public var height: Int?
     public var bitrateKbps: Int?
+    public var upscales: Bool
     public var upliftsFrameRate: Bool
 
     public init(
@@ -20,6 +21,7 @@ public struct WallpaperRequest {
         width: Int? = nil,
         height: Int? = nil,
         bitrateKbps: Int? = nil,
+        upscales: Bool = false,
         upliftsFrameRate: Bool = false
     ) {
         self.input = input
@@ -29,6 +31,7 @@ public struct WallpaperRequest {
         self.width = width
         self.height = height
         self.bitrateKbps = bitrateKbps
+        self.upscales = upscales
         self.upliftsFrameRate = upliftsFrameRate
     }
 }
@@ -39,11 +42,13 @@ public struct PreparedInstall {
     public let width: Int
     public let height: Int
     public let bitrateKbps: Int
+    public let upscales: Bool
     public let upliftsFrameRate: Bool
     let manifest: JSONObject
     let target: InstallTarget
 
     public var replacingAsset: Bool { target.replacingAsset }
+    public var assetID: String { target.assetID }
 }
 
 public struct WallpaperInstaller {
@@ -61,6 +66,17 @@ public struct WallpaperInstaller {
         if upliftsFrameRate && !FrameRateUplift.isSupported {
             throw MotionWallError.frameInterpolationUnsupported
         }
+        let defaultSize = SpatialUpscale.outputSize(for: source, upscales: request.upscales)
+        let width = request.width ?? (request.upscales ? defaultSize.width : Int(source.size.width))
+        let height = request.height ?? (request.upscales ? defaultSize.height : Int(source.size.height))
+        let upscales =
+            request.upscales && (width > Int(source.size.width) || height > Int(source.size.height))
+        if upscales && !SpatialUpscale.isSupported {
+            throw MotionWallError.upscalingUnsupported
+        }
+        if upscales && !SpatialUpscale.applies(to: source) {
+            throw MotionWallError.upscalingUnavailable(Int(source.size.width), Int(source.size.height))
+        }
         try library.prepareDirectories()
         let manifest = try library.load()
         let target = try library.resolveTarget(
@@ -72,10 +88,12 @@ public struct WallpaperInstaller {
         return PreparedInstall(
             request: request,
             source: source,
-            width: request.width ?? Int(source.size.width),
-            height: request.height ?? Int(source.size.height),
+            width: width,
+            height: height,
             bitrateKbps: request.bitrateKbps
-                ?? WallpaperRequest.suggestedBitrateKbps(for: source, upliftsFrameRate: upliftsFrameRate),
+                ?? WallpaperRequest.suggestedBitrateKbps(
+                    for: source, width: width, height: height, upliftsFrameRate: upliftsFrameRate),
+            upscales: upscales,
             upliftsFrameRate: upliftsFrameRate,
             manifest: manifest,
             target: target
@@ -84,10 +102,16 @@ public struct WallpaperInstaller {
 
     public func install(
         _ prepared: PreparedInstall,
+        isCancelled: @escaping () -> Bool = { false },
         onProgress: @escaping (Int, Int) -> Void
     ) throws -> URL {
         let request = prepared.request
         let target = prepared.target
+
+        if prepared.upscales {
+            try SpatialUpscale.downloadModel(for: prepared.source)
+        }
+        if isCancelled() { throw MotionWallError.cancelledByUser }
 
         let staging = FileManager.default.temporaryDirectory
             .appendingPathComponent("motionwall-\(target.assetID).mov")
@@ -97,7 +121,9 @@ public struct WallpaperInstaller {
             width: prepared.width,
             height: prepared.height,
             bitrate: prepared.bitrateKbps * 1000,
+            upscales: prepared.upscales,
             upliftsFrameRate: prepared.upliftsFrameRate,
+            isCancelled: isCancelled,
             onProgress: onProgress
         ).run()
 

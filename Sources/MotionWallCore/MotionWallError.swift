@@ -12,7 +12,12 @@ public enum MotionWallError: Error, CustomStringConvertible {
     case encodeFrame(OSStatus)
     case frameInterpolationUnsupported
     case frameInterpolationUnavailable(Int, Int)
-    case frameInterpolationFailed(String)
+    case upscalingUnsupported
+    case upscalingUnavailable(Int, Int)
+    case upscalingModelUnavailable(String)
+    case frameProcessingFailed(String)
+    case wallpaperSelectionUnsupported
+    case wallpaperSelectionFailed(String)
     case noEncodedSamples
     case writeFailed(String)
     case thumbnailFrameOutOfRange(Int, Int)
@@ -49,8 +54,18 @@ public enum MotionWallError: Error, CustomStringConvertible {
             return "interpolating to \(FrameRateUplift.frameRate) fps needs macOS 15.4 or later and a Mac that supports VideoToolbox frame rate conversion"
         case .frameInterpolationUnavailable(let width, let height):
             return "this Mac cannot interpolate \(width)x\(height) video; the limit is 8192x4320"
-        case .frameInterpolationFailed(let reason):
-            return "interpolating frames failed: \(reason)"
+        case .upscalingUnsupported:
+            return "upscaling needs macOS 26 or later and a Mac that supports VideoToolbox super resolution"
+        case .upscalingUnavailable(let width, let height):
+            return "VideoToolbox cannot upscale \(width)x\(height) video; the limit is 1920x1080"
+        case .upscalingModelUnavailable(let reason):
+            return "downloading the upscaling model failed: \(reason)"
+        case .frameProcessingFailed(let reason):
+            return "processing frames with VideoToolbox failed: \(reason)"
+        case .wallpaperSelectionUnsupported:
+            return "your current wallpaper isn't an animated one, so MotionWall can't swap it; pick the new one in Wallpaper settings"
+        case .wallpaperSelectionFailed(let reason):
+            return "setting the wallpaper failed: \(reason)"
         case .noEncodedSamples:
             return "the encoder produced no frames"
         case .writeFailed(let reason):

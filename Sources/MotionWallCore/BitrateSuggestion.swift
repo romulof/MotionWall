@@ -3,13 +3,18 @@ import CoreMedia
 extension WallpaperRequest {
     public static let bitrateStepKbps = 100
 
-    public static func suggestedBitrateKbps(for source: VideoSource, upliftsFrameRate: Bool) -> Int {
+    public static func suggestedBitrateKbps(
+        for source: VideoSource, width: Int, height: Int, upliftsFrameRate: Bool
+    ) -> Int {
         let hevcKbps =
             source.bitsPerSecond > 0
             ? source.bitsPerSecond / 1000 * hevcEquivalence(of: source.codec)
             : Double(fallbackBitrateKbps)
+        let pixelRatio = Double(width * height) / Double(source.size.width * source.size.height)
+        // Calibrated on 720p upscaled to 1440p: four times the pixels needed three times the bitrate.
+        let resolutionCost = pow(pixelRatio, 0.8)
         let frameCost = upliftsFrameRate ? interpolatedFrameCost(from: source.frameRate) : 1
-        let steps = (hevcKbps * frameCost / Double(bitrateStepKbps)).rounded()
+        let steps = (hevcKbps * resolutionCost * frameCost / Double(bitrateStepKbps)).rounded()
         return max(1, Int(steps)) * bitrateStepKbps
     }
 

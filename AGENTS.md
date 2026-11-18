@@ -18,6 +18,7 @@ MotionWall turns a video into a macOS animated wallpaper. It ships as `MotionWal
 ## Rules
 
 - Never run a real install unless the user asks. It rewrites `~/Library/Application Support/com.apple.wallpaper/aerials/manifest/entries.json` and restarts `WallpaperAgent`.
+- Never call `WallpaperSelection.select` unless the user asks. It rewrites the user's wallpaper choice in `~/Library/Application Support/com.apple.wallpaper/Store/Index.plist`, an undocumented format, and only switches choices that already show an aerial.
 - Never modify Apple's categories or assets. `AerialLibrary.isAppleOwned` defines ownership.
 - Keep `AerialLibrary.load` rebasing onto the manifest bundled with macOS when that one has the higher `version`; the wallpaper extension ignores an older downloaded manifest.
 - Keep the CLI's output and exit codes stable: usage errors exit 2, other failures exit 1.

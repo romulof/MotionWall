@@ -26,7 +26,9 @@ struct WallpaperEncoder {
     let width: Int
     let height: Int
     let bitrate: Int
+    let upscales: Bool
     let upliftsFrameRate: Bool
+    let isCancelled: () -> Bool
     let onProgress: (Int, Int) -> Void
 
     func run() throws {
@@ -44,9 +46,12 @@ struct WallpaperEncoder {
         let compressor = try makeCompressor()
         let pixelBufferPool = try makePixelBufferPool()
         let timeline = try makeTimeline(outputPool: pixelBufferPool)
-        let ciContext = CIContext(options: [.cacheIntermediates: false])
-        let colorSpace = CGColorSpace(name: CGColorSpace.itur_709)!
-        let verticalScale = Double(height) / Double(source.size.height)
+        let upscaler = try makeUpscaler()
+        let ciContext = CIContext(options: [
+            .cacheIntermediates: false, .workingColorSpace: NSNull(), .outputColorSpace: NSNull(),
+        ])
+        let inputFactor = Double(upscaler == nil ? 1 : SpatialUpscale.factor)
+        let verticalScale = Double(height) / (Double(source.size.height) * inputFactor)
         let aspectCorrection =
             (Double(width) / Double(height))
             / (Double(source.size.width) / Double(source.size.height))
@@ -69,11 +74,18 @@ struct WallpaperEncoder {
         }
 
         while let sample = readerOutput.copyNextSampleBuffer() {
+            if isCancelled() {
+                reader.cancelReading()
+                VTCompressionSessionInvalidate(compressor)
+                throw MotionWallError.cancelledByUser
+            }
             guard let sourceBuffer = CMSampleBufferGetImageBuffer(sample) else { continue }
+            let time = CMSampleBufferGetPresentationTimeStamp(sample)
+            let input = try upscaler?.upscale(sourceBuffer, at: time) ?? sourceBuffer
             guard let filter = CIFilter(name: "CILanczosScaleTransform") else {
                 throw MotionWallError.pixelBufferAllocation
             }
-            filter.setValue(CIImage(cvPixelBuffer: sourceBuffer), forKey: kCIInputImageKey)
+            filter.setValue(CIImage(cvPixelBuffer: input), forKey: kCIInputImageKey)
             filter.setValue(verticalScale, forKey: kCIInputScaleKey)
             filter.setValue(aspectCorrection, forKey: kCIInputAspectRatioKey)
             guard let scaled = filter.outputImage else {
@@ -87,12 +99,12 @@ struct WallpaperEncoder {
                 scaled,
                 to: target,
                 bounds: CGRect(x: 0, y: 0, width: width, height: height),
-                colorSpace: colorSpace
+                colorSpace: nil
             )
 
             let frames = try timeline.add(
                 target,
-                at: CMSampleBufferGetPresentationTimeStamp(sample),
+                at: time,
                 duration: CMSampleBufferGetDuration(sample)
             )
             try frames.forEach(encode)
@@ -119,6 +131,12 @@ struct WallpaperEncoder {
         }
         return try InterpolatedTimeline(
             width: width, height: height, sourceFrameRate: source.frameRate, outputPool: outputPool)
+    }
+
+    private func makeUpscaler() throws -> FrameUpscaler? {
+        guard upscales else { return nil }
+        guard #available(macOS 26, *) else { throw MotionWallError.upscalingUnsupported }
+        return try SuperResolutionUpscaler(width: Int(source.size.width), height: Int(source.size.height))
     }
 
     private func makeCompressor() throws -> VTCompressionSession {
