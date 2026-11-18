@@ -14,7 +14,7 @@ The super-resolution scaler works only at 4× and accepts video up to 1920×1080
 
 ## Output resolution
 
-The app keeps the source's aspect ratio. The output is the source size, or four times it with **Upscale** on, shrunk to fit 4K: the long side at most 3840 and the short side at most 2160, whichever way round the video is.
+The app keeps the source's aspect ratio. The output is the source size, or four times it with **Upscale** on, shrunk to fit 4K: the long side at most 3840 and the short side at most 2160, whichever way round the video is. The CLI's `--upscale` uses the same rule unless `--width` or `--height` sets the size.
 
 | Source | Upscale | Output |
 |---|---|---|

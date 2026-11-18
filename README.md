@@ -93,20 +93,23 @@ motionwall --input <path> --name <name> [options]
 | `--width <pixels>` | no | source width | Output width. Scaled with Lanczos. |
 | `--height <pixels>` | no | source height | Output height. |
 | `--bitrate <kbps>` | no | source bitrate, converted to HEVC | Target bitrate in kbit/s, at least `100`. See [Docs/encoder.md](Docs/encoder.md). Falls back to `12000` when the source does not report one. |
+| `--upscale` | no | off | Enlarge 4× with VideoToolbox super resolution and fit within 3840×2160, as the app's Upscale does. Needs macOS 26 and a source up to 1920×1080. |
+| `--interpolate` | no | off | Interpolate to 120 fps with VideoToolbox frame rate conversion, as the app's option does. Needs macOS 15.4; skipped for a source already at 120 fps. |
 | `--force` | no | off | Replace an existing wallpaper without asking. |
 
-Unlike the app, the CLI lets width and height scale independently, so setting only one stretches the picture. It neither upscales with VideoToolbox nor interpolates to 120 fps.
+Unlike the app, the CLI lets width and height scale independently, so setting only one stretches the picture. With `--upscale`, they set the final size the 4× result is scaled to. Both VideoToolbox options are off unless you pass them, and the default bitrate rises with them as in the app.
 
 Example:
 
 ```
 motionwall --input video.mp4 --name "My Wallpaper" --width 3840 --height 2160 --thumbnail-frame 200
+motionwall --input clip-720p.mov --name "Smooth" --upscale --interpolate
 ```
 
 ## What it does
 
 1. Reads the source and scales it with `CILanczosScaleTransform`.
-    With the app's Upscale option, VideoToolbox super resolution enlarges each frame 4× first; with its 120 fps option, VideoToolbox frame rate conversion interpolates the scaled frames onto a 120 fps grid. [Docs/encoder.md](Docs/encoder.md) has the details.
+    With Upscale (`--upscale`), VideoToolbox super resolution enlarges each frame 4× first; with 120 fps (`--interpolate`), VideoToolbox frame rate conversion interpolates the scaled frames onto a 120 fps grid. [Docs/encoder.md](Docs/encoder.md) has the details.
 2. Encodes HEVC Main 10 through `VTCompressionSession`, with temporal layers.
 3. Extracts the chosen frame, centre-crops it to the 642×390 tile aspect.
 4. Copies both files into `~/Library/Application Support/com.apple.wallpaper/aerials/`.

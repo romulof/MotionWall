@@ -25,7 +25,9 @@ do {
         thumbnailFrame: arguments.thumbnailFrame,
         width: arguments.width,
         height: arguments.height,
-        bitrateKbps: arguments.bitrateKbps
+        bitrateKbps: arguments.bitrateKbps,
+        upscales: arguments.upscales,
+        upliftsFrameRate: arguments.interpolates
     )
     let installer = WallpaperInstaller()
     let prepared = try installer.prepare(
@@ -36,7 +38,18 @@ do {
 
     report("source:    \(Int(source.size.width))x\(Int(source.size.height)) at \(Int(source.frameRate.rounded())) fps, \(source.frameCount) frames")
     report("output:    \(prepared.width)x\(prepared.height) at \(prepared.bitrateKbps) kbit/s, HEVC Main 10 with temporal layers")
+    if prepared.upscales {
+        report("upscale:   4x with VideoToolbox super resolution, then Lanczos to \(prepared.width)x\(prepared.height)")
+    }
+    if prepared.upliftsFrameRate {
+        report("interpolate: \(Int(source.frameRate.rounded())) to \(FrameRateUplift.frameRate) fps with VideoToolbox")
+    } else if arguments.interpolates {
+        report("interpolate: skipped, the source already runs at \(Int(source.frameRate.rounded())) fps")
+    }
     report("wallpaper: \"\(arguments.name)\" in \"\(arguments.category)\"\(prepared.replacingAsset ? " (replacing)" : "")")
+    if prepared.upscales && !SpatialUpscale.isModelReady(for: source) {
+        report("downloading the upscaling model…")
+    }
 
     var lastPercent = -1
     let videoDestination = try installer.install(prepared) { done, total in

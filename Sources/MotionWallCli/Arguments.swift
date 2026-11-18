@@ -9,6 +9,8 @@ struct Arguments {
     var width: Int?
     var height: Int?
     var bitrateKbps: Int?
+    var upscales: Bool = false
+    var interpolates: Bool = false
     var force: Bool = false
 
     static let usage = """
@@ -27,6 +29,9 @@ struct Arguments {
           --width <pixels>          output width (default: source width)
           --height <pixels>         output height (default: source height)
           --bitrate <kbps>          target bitrate in kbit/s (default: the source's, converted to HEVC, or 12000 if unknown)
+          --upscale                 enlarge 4x with VideoToolbox super resolution, fitted within 3840x2160
+                                    (macOS 26, sources up to 1920x1080); --width and --height still apply
+          --interpolate             interpolate to 120 fps with VideoToolbox frame rate conversion (macOS 15.4)
           --force                   replace an existing wallpaper without asking
           --help                    print this text
 
@@ -69,6 +74,10 @@ struct Arguments {
                 parsed.height = try nextInt(for: "--height")
             case "--bitrate":
                 parsed.bitrateKbps = try nextInt(for: "--bitrate")
+            case "--upscale":
+                parsed.upscales = true
+            case "--interpolate":
+                parsed.interpolates = true
             case "--force":
                 parsed.force = true
             case "--help", "-h":
