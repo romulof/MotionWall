@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.0](https://github.com/romulof/MotionWall/compare/v1.0.0...v1.1.0) (2026-11-18)
+
+
+### Features
+
+* animate drop zone transitions and slide in the settings panel ([19c82ed](https://github.com/romulof/MotionWall/commit/19c82ed9d22ceb9346adc8d1331bfc2f480b5784))
+* **cli:** add --upscale and --interpolate ([bbba7d1](https://github.com/romulof/MotionWall/commit/bbba7d180ed102f669538a526ac7ed2fbaa50b16))
+* interpolate to 120 fps and derive the default bitrate from codec and frame rate ([6645cbf](https://github.com/romulof/MotionWall/commit/6645cbf9db01b1ba79bfa0d5178ccb533a2d06ff))
+* upscale to 4K with VideoToolbox super resolution and rework the install flow ([928bfac](https://github.com/romulof/MotionWall/commit/928bfaceadf346b858f52d03a1a8e30d5f7622cf))
+
 ## 1.0.0 (2026-11-17)
 
 
