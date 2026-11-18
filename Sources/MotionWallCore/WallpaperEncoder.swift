@@ -26,6 +26,7 @@ struct WallpaperEncoder {
     let width: Int
     let height: Int
     let bitrate: Int
+    let upliftsFrameRate: Bool
     let onProgress: (Int, Int) -> Void
 
     func run() throws {
@@ -42,6 +43,7 @@ struct WallpaperEncoder {
 
         let compressor = try makeCompressor()
         let pixelBufferPool = try makePixelBufferPool()
+        let timeline = try makeTimeline(outputPool: pixelBufferPool)
         let ciContext = CIContext(options: [.cacheIntermediates: false])
         let colorSpace = CGColorSpace(name: CGColorSpace.itur_709)!
         let verticalScale = Double(height) / Double(source.size.height)
@@ -50,6 +52,21 @@ struct WallpaperEncoder {
             / (Double(source.size.width) / Double(source.size.height))
         let collected = EncodedSamples()
         var submitted = 0
+
+        func encode(_ frame: TimedFrame) throws {
+            let status = VTCompressionSessionEncodeFrame(
+                compressor,
+                imageBuffer: frame.buffer,
+                presentationTimeStamp: frame.time,
+                duration: frame.duration,
+                frameProperties: nil,
+                infoFlagsOut: nil
+            ) { status, _, encoded in
+                guard status == noErr, let encoded else { return }
+                collected.append(encoded)
+            }
+            guard status == noErr else { throw MotionWallError.encodeFrame(status) }
+        }
 
         while let sample = readerOutput.copyNextSampleBuffer() {
             guard let sourceBuffer = CMSampleBufferGetImageBuffer(sample) else { continue }
@@ -73,27 +90,35 @@ struct WallpaperEncoder {
                 colorSpace: colorSpace
             )
 
-            let status = VTCompressionSessionEncodeFrame(
-                compressor,
-                imageBuffer: target,
-                presentationTimeStamp: CMSampleBufferGetPresentationTimeStamp(sample),
-                duration: CMSampleBufferGetDuration(sample),
-                frameProperties: nil,
-                infoFlagsOut: nil
-            ) { status, _, encoded in
-                guard status == noErr, let encoded else { return }
-                collected.append(encoded)
-            }
-            guard status == noErr else { throw MotionWallError.encodeFrame(status) }
+            let frames = try timeline.add(
+                target,
+                at: CMSampleBufferGetPresentationTimeStamp(sample),
+                duration: CMSampleBufferGetDuration(sample)
+            )
+            try frames.forEach(encode)
 
             submitted += 1
             onProgress(submitted, source.frameCount)
         }
 
+        try timeline.finish().forEach(encode)
         VTCompressionSessionCompleteFrames(compressor, untilPresentationTimeStamp: .invalid)
         VTCompressionSessionInvalidate(compressor)
 
         try write(samples: collected.ordered)
+    }
+
+    private var frameRate: Double {
+        upliftsFrameRate ? Double(FrameRateUplift.frameRate) : source.frameRate
+    }
+
+    private func makeTimeline(outputPool: CVPixelBufferPool) throws -> FrameTimeline {
+        guard upliftsFrameRate else { return SourceTimeline() }
+        guard #available(macOS 15.4, *) else {
+            throw MotionWallError.frameInterpolationUnavailable(width, height)
+        }
+        return try InterpolatedTimeline(
+            width: width, height: height, sourceFrameRate: source.frameRate, outputPool: outputPool)
     }
 
     private func makeCompressor() throws -> VTCompressionSession {
@@ -121,11 +146,11 @@ struct WallpaperEncoder {
             guard status == noErr else { throw MotionWallError.property(key as String, status) }
         }
 
-        let keyFrameInterval = Int(source.frameRate.rounded())
+        let keyFrameInterval = Int(frameRate.rounded())
         try set(kVTCompressionPropertyKey_ProfileLevel, kVTProfileLevel_HEVC_Main10_AutoLevel)
         try set(kVTCompressionPropertyKey_AverageBitRate, bitrate as CFNumber)
         try set(kVTCompressionPropertyKey_MaxKeyFrameInterval, keyFrameInterval as CFNumber)
-        try set(kVTCompressionPropertyKey_ExpectedFrameRate, source.frameRate as CFNumber)
+        try set(kVTCompressionPropertyKey_ExpectedFrameRate, frameRate as CFNumber)
         try set(kVTCompressionPropertyKey_AllowFrameReordering, kCFBooleanTrue)
         try set(kVTCompressionPropertyKey_AllowTemporalCompression, kCFBooleanTrue)
         try set(kVTCompressionPropertyKey_RealTime, kCFBooleanFalse)
@@ -139,7 +164,7 @@ struct WallpaperEncoder {
         guard layersEnabled else { throw MotionWallError.temporalLayersUnsupported }
         VTSessionSetProperty(compressor, key: Self.temporalIDNestingFlag, value: kCFBooleanTrue)
         VTSessionSetProperty(
-            compressor, key: Self.baseLayerFrameRate, value: source.frameRate / 2 as CFNumber)
+            compressor, key: Self.baseLayerFrameRate, value: frameRate / 2 as CFNumber)
 
         return compressor
     }
@@ -149,20 +174,12 @@ struct WallpaperEncoder {
     private static let baseLayerFrameRate = "BaseLayerFrameRate" as CFString
 
     private func makePixelBufferPool() throws -> CVPixelBufferPool {
-        var pool: CVPixelBufferPool?
-        CVPixelBufferPoolCreate(
-            kCFAllocatorDefault,
-            nil,
-            [
-                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-                kCVPixelBufferWidthKey as String: width,
-                kCVPixelBufferHeightKey as String: height,
-                kCVPixelBufferIOSurfacePropertiesKey as String: [:],
-            ] as CFDictionary,
-            &pool
-        )
-        guard let pixelBufferPool = pool else { throw MotionWallError.pixelBufferAllocation }
-        return pixelBufferPool
+        try createPixelBufferPool([
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey as String: width,
+            kCVPixelBufferHeightKey as String: height,
+            kCVPixelBufferIOSurfacePropertiesKey as String: [String: Any](),
+        ])
     }
 
     private func write(samples: [CMSampleBuffer]) throws {
@@ -183,7 +200,7 @@ struct WallpaperEncoder {
             sourceFormatHint: formatDescription
         )
         input.expectsMediaDataInRealTime = false
-        input.mediaTimeScale = CMTimeScale(Int(source.frameRate.rounded()) * 1000)
+        input.mediaTimeScale = CMTimeScale(Int(frameRate.rounded()) * 1000)
         writer.add(input)
 
         guard writer.startWriting() else {

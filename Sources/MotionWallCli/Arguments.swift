@@ -8,7 +8,7 @@ struct Arguments {
     var thumbnailFrame: Int = 1
     var width: Int?
     var height: Int?
-    var bitrateMbps: Int?
+    var bitrateKbps: Int?
     var force: Bool = false
 
     static let usage = """
@@ -26,7 +26,7 @@ struct Arguments {
           --thumbnail-frame <n>     frame used as the tile image, 1-based (default: 1)
           --width <pixels>          output width (default: source width)
           --height <pixels>         output height (default: source height)
-          --bitrate <mbps>          target bitrate in Mbit/s (default: the source's, or 12 if unknown)
+          --bitrate <kbps>          target bitrate in kbit/s (default: the source's, converted to HEVC, or 12000 if unknown)
           --force                   replace an existing wallpaper without asking
           --help                    print this text
 
@@ -68,7 +68,7 @@ struct Arguments {
             case "--height":
                 parsed.height = try nextInt(for: "--height")
             case "--bitrate":
-                parsed.bitrateMbps = try nextInt(for: "--bitrate")
+                parsed.bitrateKbps = try nextInt(for: "--bitrate")
             case "--force":
                 parsed.force = true
             case "--help", "-h":
@@ -86,8 +86,8 @@ struct Arguments {
         guard parsed.thumbnailFrame >= 1 else {
             throw MotionWallError.usage("--thumbnail-frame must be 1 or greater")
         }
-        guard (parsed.bitrateMbps ?? 1) >= 1 else {
-            throw MotionWallError.usage("--bitrate must be 1 or greater")
+        guard (parsed.bitrateKbps ?? WallpaperRequest.bitrateStepKbps) >= WallpaperRequest.bitrateStepKbps else {
+            throw MotionWallError.usage("--bitrate must be \(WallpaperRequest.bitrateStepKbps) or greater")
         }
         guard !parsed.category.isEmpty else {
             throw MotionWallError.usage("--category cannot be empty")

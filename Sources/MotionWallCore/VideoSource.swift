@@ -9,9 +9,10 @@ public struct VideoSource {
     public let frameRate: Double
     public let frameCount: Int
     public let bitsPerSecond: Double
+    public let codec: CMVideoCodecType
 
-    public var bitrateMbps: Int? {
-        bitsPerSecond > 0 ? max(1, Int((bitsPerSecond / 1_000_000).rounded())) : nil
+    public var bitrateKbps: Int? {
+        bitsPerSecond > 0 ? max(1, Int((bitsPerSecond / 1000).rounded())) : nil
     }
 
     public init(url: URL) throws {
@@ -22,12 +23,13 @@ public struct VideoSource {
         let tracks = try runBlocking { try await asset.loadTracks(withMediaType: .video) }
         guard let track = tracks.first else { throw MotionWallError.noVideoTrack(url) }
 
-        let (size, nominalRate, duration, dataRate) = try runBlocking {
+        let (size, nominalRate, duration, dataRate, formats) = try runBlocking {
             try await (
                 track.load(.naturalSize),
                 track.load(.nominalFrameRate),
                 track.load(.timeRange).duration,
-                track.load(.estimatedDataRate)
+                track.load(.estimatedDataRate),
+                track.load(.formatDescriptions)
             )
         }
 
@@ -38,5 +40,6 @@ public struct VideoSource {
         self.frameRate = nominalRate > 0 ? Double(nominalRate) : 24
         self.frameCount = max(Int((duration.seconds * self.frameRate).rounded()), 1)
         self.bitsPerSecond = Double(dataRate)
+        self.codec = formats.first.map(CMFormatDescriptionGetMediaSubType) ?? 0
     }
 }

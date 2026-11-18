@@ -25,7 +25,7 @@ do {
         thumbnailFrame: arguments.thumbnailFrame,
         width: arguments.width,
         height: arguments.height,
-        bitrateMbps: arguments.bitrateMbps
+        bitrateKbps: arguments.bitrateKbps
     )
     let installer = WallpaperInstaller()
     let prepared = try installer.prepare(
@@ -35,7 +35,7 @@ do {
     let source = prepared.source
 
     report("source:    \(Int(source.size.width))x\(Int(source.size.height)) at \(Int(source.frameRate.rounded())) fps, \(source.frameCount) frames")
-    report("output:    \(prepared.width)x\(prepared.height) at \(prepared.bitrateMbps) Mbit/s, HEVC Main 10 with temporal layers")
+    report("output:    \(prepared.width)x\(prepared.height) at \(prepared.bitrateKbps) kbit/s, HEVC Main 10 with temporal layers")
     report("wallpaper: \"\(arguments.name)\" in \"\(arguments.category)\"\(prepared.replacingAsset ? " (replacing)" : "")")
 
     var lastPercent = -1

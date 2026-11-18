@@ -10,6 +10,9 @@ public enum MotionWallError: Error, CustomStringConvertible {
     case temporalLayersUnsupported
     case pixelBufferAllocation
     case encodeFrame(OSStatus)
+    case frameInterpolationUnsupported
+    case frameInterpolationUnavailable(Int, Int)
+    case frameInterpolationFailed(String)
     case noEncodedSamples
     case writeFailed(String)
     case thumbnailFrameOutOfRange(Int, Int)
@@ -42,6 +45,12 @@ public enum MotionWallError: Error, CustomStringConvertible {
             return "cannot allocate a pixel buffer"
         case .encodeFrame(let status):
             return "encoding a frame failed with status \(status)"
+        case .frameInterpolationUnsupported:
+            return "interpolating to \(FrameRateUplift.frameRate) fps needs macOS 15.4 or later and a Mac that supports VideoToolbox frame rate conversion"
+        case .frameInterpolationUnavailable(let width, let height):
+            return "this Mac cannot interpolate \(width)x\(height) video; the limit is 8192x4320"
+        case .frameInterpolationFailed(let reason):
+            return "interpolating frames failed: \(reason)"
         case .noEncodedSamples:
             return "the encoder produced no frames"
         case .writeFailed(let reason):

@@ -146,7 +146,7 @@ struct ContentView: View {
                 detailRow("Width", "\(Int(source.size.width))")
                 detailRow("Height", "\(Int(source.size.height))")
                 detailRow("Frame rate", formattedFrameRate(source))
-                detailRow("Bitrate", source.bitrateMbps.map { "\($0) Mbit/s" } ?? "Unknown")
+                detailRow("Bitrate", source.bitrateKbps.map { "\($0) kbit/s" } ?? "Unknown")
             }
             Text("Release to load").foregroundStyle(.secondary).padding(.top, 4)
         } else if hovered.unreadable {
@@ -226,16 +226,26 @@ struct ContentView: View {
                     prompt: Text(verbatim: model.source.map { "\(Int($0.size.height))" } ?? "source height"))
             }
             formRow("Frame rate") {
-                Text(verbatim: model.source.map { formattedFrameRate($0) } ?? "")
-                .foregroundStyle(.secondary)
+                HStack(alignment: .firstTextBaseline, spacing: 16) {
+                    Text(verbatim: model.source.map { formattedFrameRate($0) } ?? "")
+                        .foregroundStyle(.secondary)
+                    if model.offersFrameRateUplift {
+                        Toggle("Interpolate to \(FrameRateUplift.frameRate) fps", isOn: $model.upliftsFrameRate)
+                            .toggleStyle(.checkbox)
+                    }
+                }
             }
             formRow("Bitrate") {
                 HStack(spacing: 6) {
-                    TextField("Bitrate", value: $model.bitrateMbps, format: .number)
-                        .frame(width: 56)
-                    Stepper("Bitrate", value: $model.bitrateMbps, in: 1...1000)
-                        .labelsHidden()
-                    Text("Mbit/s").foregroundStyle(.secondary)
+                    TextField("Bitrate", value: $model.bitrateKbps, format: .number.grouping(.never))
+                        .frame(width: 80)
+                    Stepper(
+                        "Bitrate", value: $model.bitrateKbps,
+                        in: WallpaperRequest.bitrateStepKbps...1_000_000,
+                        step: WallpaperRequest.bitrateStepKbps
+                    )
+                    .labelsHidden()
+                    Text("kbit/s").foregroundStyle(.secondary)
                 }
             }
             formRow("Thumbnail", alignment: .center) {

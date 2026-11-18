@@ -45,8 +45,8 @@ Once the video is in, the left side holds the settings and the right side shows 
 
 - **Name** and **Category** are what System Settings shows. The name starts as the file name, the category as `Custom`.
 - **Width** and **Height** start empty, which means the source size. They scale independently, so setting only one changes the aspect ratio.
-- **Frame rate** is the source's. MotionWall keeps every frame.
-- **Bitrate** starts at the source's bitrate.
+- **Frame rate** is the source's. MotionWall keeps every frame. **Interpolate to 120 fps**, on by default, adds frames in between with VideoToolbox frame rate conversion for a smoother unlock. It needs macOS 15.4 or later and is hidden when the source already runs at 120 fps or the Mac does not support it. The CLI keeps the source frame rate.
+- **Bitrate**, in kbit/s, starts at the source's bitrate converted to HEVC, raised when 120 fps is on. Ticking the box updates the field unless you typed your own value. [Docs/encoder.md](Docs/encoder.md) has the math.
 - **Thumbnail** picks the frame used for the tile. The preview on the right is the exact 642×390 image that gets installed.
 
 To swap videos, drag another one over the window. Before you let go, it shows that file's name, size, frame rate and bitrate. Change… on the right does the same through a file picker.
@@ -71,7 +71,7 @@ motionwall --input <path> --name <name> [options]
 | `--thumbnail-frame <n>` | no | `1` | 1-based frame used for the tile image. |
 | `--width <pixels>` | no | source width | Output width. Scaled with Lanczos. |
 | `--height <pixels>` | no | source height | Output height. |
-| `--bitrate <mbps>` | no | source bitrate | Target bitrate in Mbit/s. Falls back to `12` when the source does not report one. |
+| `--bitrate <kbps>` | no | source bitrate, converted to HEVC | Target bitrate in kbit/s, at least `100`. See [Docs/encoder.md](Docs/encoder.md). Falls back to `12000` when the source does not report one. |
 | `--force` | no | off | Replace an existing wallpaper without asking. |
 
 Width and height scale independently, as in the app: setting only one stretches the picture.
@@ -85,6 +85,7 @@ motionwall --input video.mp4 --name "My Wallpaper" --width 3840 --height 2160 --
 ## What it does
 
 1. Reads the source and scales it with `CILanczosScaleTransform`.
+    When the app's 120 fps option is on, VideoToolbox's frame rate converter interpolates the scaled frames onto a 120 fps grid.
 2. Encodes HEVC Main 10 through `VTCompressionSession`, with temporal layers.
 3. Extracts the chosen frame, centre-crops it to the 642×390 tile aspect.
 4. Copies both files into `~/Library/Application Support/com.apple.wallpaper/aerials/`.
@@ -119,6 +120,7 @@ Releases are cut from those messages. On every push to `main`, [release-please](
 
 ## Docs
 
+- [How the encoder picks a bitrate](Docs/encoder.md) — the codec and frame-rate factors behind the default bitrate, and the measurement they come from.
 - [Why temporal layers matter](Docs/temporal-layers.md) — the HEVC sample groups macOS needs for the unlock animation, why the desktop goes black without them, why `ffmpeg` cannot write them, and which video properties turned out to be irrelevant.
 
 ## Licence

@@ -29,7 +29,13 @@ final class InstallModel: ObservableObject {
     @Published var category = "Custom"
     @Published var width = ""
     @Published var height = ""
-    @Published var bitrateMbps = WallpaperRequest.fallbackBitrateMbps
+    @Published var bitrateKbps = WallpaperRequest.fallbackBitrateKbps
+    @Published var upliftsFrameRate = true {
+        didSet {
+            guard bitrateKbps == suggestedBitrateKbps(uplifting: oldValue) else { return }
+            bitrateKbps = suggestedBitrateKbps(uplifting: upliftsFrameRate)
+        }
+    }
     @Published var thumbnailFrame = 1 {
         didSet { refreshPreview() }
     }
@@ -46,11 +52,16 @@ final class InstallModel: ObservableObject {
 
     var canInstall: Bool { !isBusy && request != nil }
 
+    var offersFrameRateUplift: Bool {
+        guard let source else { return false }
+        return FrameRateUplift.isSupported && FrameRateUplift.applies(to: source)
+    }
+
     var request: WallpaperRequest? {
         guard let source else { return nil }
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         let trimmedCategory = category.trimmingCharacters(in: .whitespaces)
-        guard !trimmedName.isEmpty, !trimmedCategory.isEmpty, bitrateMbps >= 1,
+        guard !trimmedName.isEmpty, !trimmedCategory.isEmpty, bitrateKbps >= WallpaperRequest.bitrateStepKbps,
             (1...source.frameCount).contains(thumbnailFrame),
             isValidDimension(width), isValidDimension(height)
         else { return nil }
@@ -61,7 +72,8 @@ final class InstallModel: ObservableObject {
             thumbnailFrame: thumbnailFrame,
             width: Int(width.trimmingCharacters(in: .whitespaces)),
             height: Int(height.trimmingCharacters(in: .whitespaces)),
-            bitrateMbps: bitrateMbps
+            bitrateKbps: bitrateKbps,
+            upliftsFrameRate: upliftsFrameRate && offersFrameRateUplift
         )
     }
 
@@ -113,7 +125,7 @@ final class InstallModel: ObservableObject {
             name = loaded.url.deletingPathExtension().lastPathComponent
         }
         thumbnailFrame = 1
-        bitrateMbps = loaded.bitrateMbps ?? WallpaperRequest.fallbackBitrateMbps
+        bitrateKbps = suggestedBitrateKbps(uplifting: upliftsFrameRate)
         phase = .idle
     }
 
@@ -186,6 +198,12 @@ final class InstallModel: ObservableObject {
             guard !Task.isCancelled else { return }
             preview = image
         }
+    }
+
+    private func suggestedBitrateKbps(uplifting: Bool) -> Int {
+        guard let source else { return WallpaperRequest.fallbackBitrateKbps }
+        return WallpaperRequest.suggestedBitrateKbps(
+            for: source, upliftsFrameRate: uplifting && offersFrameRateUplift)
     }
 
     private func isValidDimension(_ text: String) -> Bool {

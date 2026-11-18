@@ -1,7 +1,7 @@
 import Foundation
 
 public struct WallpaperRequest {
-    public static let fallbackBitrateMbps = 12
+    public static let fallbackBitrateKbps = 12_000
 
     public var input: URL
     public var name: String
@@ -9,7 +9,8 @@ public struct WallpaperRequest {
     public var thumbnailFrame: Int
     public var width: Int?
     public var height: Int?
-    public var bitrateMbps: Int?
+    public var bitrateKbps: Int?
+    public var upliftsFrameRate: Bool
 
     public init(
         input: URL,
@@ -18,7 +19,8 @@ public struct WallpaperRequest {
         thumbnailFrame: Int = 1,
         width: Int? = nil,
         height: Int? = nil,
-        bitrateMbps: Int? = nil
+        bitrateKbps: Int? = nil,
+        upliftsFrameRate: Bool = false
     ) {
         self.input = input
         self.name = name
@@ -26,7 +28,8 @@ public struct WallpaperRequest {
         self.thumbnailFrame = thumbnailFrame
         self.width = width
         self.height = height
-        self.bitrateMbps = bitrateMbps
+        self.bitrateKbps = bitrateKbps
+        self.upliftsFrameRate = upliftsFrameRate
     }
 }
 
@@ -35,7 +38,8 @@ public struct PreparedInstall {
     public let source: VideoSource
     public let width: Int
     public let height: Int
-    public let bitrateMbps: Int
+    public let bitrateKbps: Int
+    public let upliftsFrameRate: Bool
     let manifest: JSONObject
     let target: InstallTarget
 
@@ -53,6 +57,10 @@ public struct WallpaperInstaller {
         confirmOverwrite: (String, String) -> Bool
     ) throws -> PreparedInstall {
         let source = try source ?? VideoSource(url: request.input)
+        let upliftsFrameRate = request.upliftsFrameRate && FrameRateUplift.applies(to: source)
+        if upliftsFrameRate && !FrameRateUplift.isSupported {
+            throw MotionWallError.frameInterpolationUnsupported
+        }
         try library.prepareDirectories()
         let manifest = try library.load()
         let target = try library.resolveTarget(
@@ -66,8 +74,9 @@ public struct WallpaperInstaller {
             source: source,
             width: request.width ?? Int(source.size.width),
             height: request.height ?? Int(source.size.height),
-            bitrateMbps: request.bitrateMbps ?? source.bitrateMbps
-                ?? WallpaperRequest.fallbackBitrateMbps,
+            bitrateKbps: request.bitrateKbps
+                ?? WallpaperRequest.suggestedBitrateKbps(for: source, upliftsFrameRate: upliftsFrameRate),
+            upliftsFrameRate: upliftsFrameRate,
             manifest: manifest,
             target: target
         )
@@ -87,7 +96,8 @@ public struct WallpaperInstaller {
             output: staging,
             width: prepared.width,
             height: prepared.height,
-            bitrate: prepared.bitrateMbps * 1_000_000,
+            bitrate: prepared.bitrateKbps * 1000,
+            upliftsFrameRate: prepared.upliftsFrameRate,
             onProgress: onProgress
         ).run()
 
